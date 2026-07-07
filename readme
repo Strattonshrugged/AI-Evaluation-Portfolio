@@ -1,0 +1,11 @@
+The purpose of this repository is to hold and operate (via Playwright) AI Evaluation experiments and exercises.
+
+Early folder outline ...
+---Plans---
+    readme: strategy, methodology, scope
+---Results---
+    run results, findings, conclusions
+---Tools---
+    playwright, llm-judge
+
+    
