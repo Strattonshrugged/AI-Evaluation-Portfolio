@@ -1,4 +1,7 @@
-The purpose of this repository is to hold and operate (via Playwright) AI Evaluation experiments and exercises.
+# AI-Evaluation-Portfolio
+This repository collects my exercises and experiments in AI Evaluation and Red Teaming. It's a working portfolio so it will change and grow as I explore new tools and methodologies rather than serving as a static showcase.
+
+My background is in Quality Assurance so I would expect deviations from any kind of standard in AI Eval to fall in that direction.
 
 Early folder outline ...
 ---Plans---
