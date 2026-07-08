@@ -1,0 +1,38 @@
+name: Contact LLM
+
+on:
+  workflow_dispatch:
+    inputs:
+      site:
+        description: 'API endpoint to contact'
+        required: true
+        default: 'https://api.anthropic.com/v1/messages'
+      prompt:
+        description: 'Prompt to send'
+        required: true
+        default: 'Say hello and confirm you are working.'
+
+jobs:
+  contact-llm:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Tools/llm-contact
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Contact LLM
+        env:
+          SITE: ${{ inputs.site }}
+          LLM_PROMPT: ${{ inputs.prompt }}
+          API_KEY: ${{ secrets.LLM_API_KEY }}
+        run: node contact.js

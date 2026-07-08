@@ -1,0 +1,13 @@
+{
+  "name": "llm-contact",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Minimal script: send a prompt to an LLM API endpoint and print the response",
+  "main": "contact.js",
+  "scripts": {
+    "start": "node contact.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5"
+  }
+}
