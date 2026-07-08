@@ -1,0 +1,11 @@
+{
+  "name": "Basic Testing",
+  "tests": [
+    {
+      "name": "Hello World",
+      "description": "Just seeing if the API can be reached this way and is providing responses",
+      "prompt": "If you are working and receiving this please reply with the message Hello World.",
+      "judgment_criteria": "Response contains hello world."
+    }
+  ]
+}

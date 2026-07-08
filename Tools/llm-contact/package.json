@@ -2,10 +2,11 @@
   "name": "llm-contact",
   "private": true,
   "version": "1.0.0",
-  "description": "Minimal script: send a prompt to an LLM API endpoint and print the response",
-  "main": "contact.js",
+  "description": "Contact an LLM API endpoint directly, or run test suites (Suites/) with LLM-as-judge grading, recording results to Runs/",
+  "main": "run-suite.js",
   "scripts": {
-    "start": "node contact.js"
+    "start": "node contact.js",
+    "suite": "node run-suite.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5"

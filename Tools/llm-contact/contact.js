@@ -1,10 +1,12 @@
 require('dotenv').config();
+const { callModel } = require('./client');
 
 const SITE = process.env.SITE;
 const API_KEY = process.env.API_KEY;
 const PROMPT = process.env.LLM_PROMPT;
 const MODEL = process.env.MODEL || 'claude-sonnet-5';
 const MAX_TOKENS = Number(process.env.MAX_TOKENS) || 1024;
+const EFFORT = process.env.EFFORT; // low | medium | high | xhigh | max (optional, defaults to "high")
 
 function requireEnv(name, value) {
   if (!value) {
@@ -13,43 +15,19 @@ function requireEnv(name, value) {
   }
 }
 
-function extractReply(body) {
-  return (
-    body.content?.find((block) => block.type === 'text')?.text ??
-    body.choices?.[0]?.message?.content ??
-    JSON.stringify(body)
-  );
-}
-
 async function main() {
   requireEnv('SITE', SITE);
   requireEnv('API_KEY', API_KEY);
   requireEnv('LLM_PROMPT', PROMPT);
 
-  const response = await fetch(SITE, {
-    method: 'POST',
-    headers: {
-      'x-api-key': API_KEY,
-      'anthropic-version': '2023-06-01',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      max_tokens: MAX_TOKENS,
-      messages: [{ role: 'user', content: PROMPT }],
-    }),
+  const reply = await callModel({
+    site: SITE,
+    apiKey: API_KEY,
+    model: MODEL,
+    maxTokens: MAX_TOKENS,
+    effort: EFFORT,
+    prompt: PROMPT,
   });
-
-  const text = await response.text();
-
-  if (!response.ok) {
-    console.error(`Request failed: ${response.status} ${response.statusText}`);
-    console.error(text);
-    process.exit(1);
-  }
-
-  const body = JSON.parse(text);
-  const reply = extractReply(body);
 
   console.log(`Site: ${SITE}`);
   console.log(`Prompt: ${PROMPT}`);
