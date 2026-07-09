@@ -9,7 +9,7 @@ const MODEL = process.env.MODEL || 'claude-sonnet-5';
 const JUDGE_MODEL = process.env.JUDGE_MODEL || MODEL;
 const MAX_TOKENS = Number(process.env.MAX_TOKENS) || 1024;
 const EFFORT = process.env.EFFORT; // low | medium | high | xhigh | max (optional, defaults to "high")
-const SUITES = process.env.SUITES; // comma-separated suite names (no .json extension)
+const SUITE = process.env.SUITE; // suite name (no .json extension)
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SUITES_DIR = path.join(REPO_ROOT, 'Suites');
@@ -36,15 +36,15 @@ function pad3(n) {
   return String(n).padStart(3, '0');
 }
 
-function nextRunDir(target, date) {
-  const prefix = `${target}_${date}_`;
+function nextRunPath(target, suite, date) {
+  const prefix = `${target}_${suite}_${date}_`;
   const existing = fs.existsSync(RUNS_DIR) ? fs.readdirSync(RUNS_DIR) : [];
   const iterations = existing
-    .filter((f) => f.startsWith(prefix) && fs.statSync(path.join(RUNS_DIR, f)).isDirectory())
-    .map((f) => parseInt(f.slice(prefix.length), 10))
+    .filter((f) => f.startsWith(prefix) && f.endsWith('.json'))
+    .map((f) => parseInt(f.slice(prefix.length, -5), 10))
     .filter((n) => !Number.isNaN(n));
   const next = iterations.length ? Math.max(...iterations) + 1 : 1;
-  return path.join(RUNS_DIR, `${prefix}${pad3(next)}`);
+  return path.join(RUNS_DIR, `${prefix}${pad3(next)}.json`);
 }
 
 function buildJudgePrompt(test, reply) {
@@ -103,27 +103,29 @@ async function runTest(test) {
   };
 }
 
-async function runSuite(suiteName, runDir) {
-  const suitePath = path.join(SUITES_DIR, `${suiteName}.json`);
+async function main() {
+  requireEnv('SITE', SITE);
+  requireEnv('API_KEY', API_KEY);
+  requireEnv('SUITE', SUITE);
+
+  const suitePath = path.join(SUITES_DIR, `${SUITE}.json`);
   if (!fs.existsSync(suitePath)) {
     console.error(`Suite not found: ${suitePath}`);
-    process.exitCode = 1;
-    return;
+    process.exit(1);
   }
 
   const suite = JSON.parse(fs.readFileSync(suitePath, 'utf8'));
   if (!Array.isArray(suite.tests) || suite.tests.length === 0) {
-    console.error(`Suite "${suiteName}" has no tests`);
-    process.exitCode = 1;
-    return;
+    console.error(`Suite "${SUITE}" has no tests`);
+    process.exit(1);
   }
 
-  console.log(`Running suite: ${suiteName} (${suite.tests.length} test${suite.tests.length === 1 ? '' : 's'})`);
+  console.log(`Running suite: ${SUITE} (${suite.tests.length} test${suite.tests.length === 1 ? '' : 's'})`);
 
   const results = [];
   for (const test of suite.tests) {
     if (!test.name || !test.prompt || !test.judgment_criteria) {
-      console.error(`Skipping test in suite "${suiteName}" missing required field(s): name, prompt, judgment_criteria`);
+      console.error(`Skipping test in suite "${SUITE}" missing required field(s): name, prompt, judgment_criteria`);
       process.exitCode = 1;
       continue;
     }
@@ -132,7 +134,7 @@ async function runSuite(suiteName, runDir) {
   }
 
   const suiteResult = {
-    suite: suiteName,
+    suite: SUITE,
     suite_name: suite.name ?? null,
     suite_description: suite.description ?? null,
     target_model: MODEL,
@@ -142,30 +144,11 @@ async function runSuite(suiteName, runDir) {
     tests: results,
   };
 
-  const suiteFilePath = path.join(runDir, `${suiteName}.json`);
-  fs.writeFileSync(suiteFilePath, JSON.stringify(suiteResult, null, 2));
-  console.log(`Saved: ${suiteFilePath}`);
-}
-
-async function main() {
-  requireEnv('SITE', SITE);
-  requireEnv('API_KEY', API_KEY);
-  requireEnv('SUITES', SUITES);
-
-  const suiteNames = SUITES.split(',').map((s) => s.trim()).filter(Boolean);
-  if (suiteNames.length === 0) {
-    console.error('No suites specified.');
-    process.exit(1);
-  }
-
   const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
-  const runDir = nextRunDir(MODEL, date);
-  fs.mkdirSync(runDir, { recursive: true });
-  console.log(`Run folder: ${runDir}`);
-
-  for (const suiteName of suiteNames) {
-    await runSuite(suiteName, runDir);
-  }
+  fs.mkdirSync(RUNS_DIR, { recursive: true });
+  const runPath = nextRunPath(MODEL, SUITE, date);
+  fs.writeFileSync(runPath, JSON.stringify(suiteResult, null, 2));
+  console.log(`Saved: ${runPath}`);
 }
 
 main().catch((err) => {

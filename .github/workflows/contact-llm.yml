@@ -3,8 +3,8 @@ name: Run Test Suite
 on:
   workflow_dispatch:
     inputs:
-      suites:
-        description: 'Suite name(s) to run, comma-separated (matches Suites/<name>.json, no extension)'
+      suite:
+        description: 'Suite name to run (matches Suites/<name>.json, no extension)'
         required: true
       site:
         description: 'API endpoint to contact'
@@ -20,6 +20,9 @@ on:
       effort:
         description: 'Reasoning effort: low | medium | high | xhigh | max (leave blank for models without effort/thinking support, e.g. Haiku)'
         required: false
+
+permissions:
+  contents: write
 
 jobs:
   run-suite:
@@ -39,20 +42,28 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Run suite(s)
+      - name: Run suite
         env:
           SITE: ${{ inputs.site }}
-          SUITES: ${{ inputs.suites }}
+          SUITE: ${{ inputs.suite }}
           MODEL: ${{ inputs.model }}
           JUDGE_MODEL: ${{ inputs.judge_model }}
           EFFORT: ${{ inputs.effort }}
           API_KEY: ${{ secrets.LLM_API_KEY }}
         run: node run-suite.js
 
-      - name: Upload run results
+      - name: Commit run result
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ../../Runs/
+          git diff --cached --quiet || git commit -m "Run result: ${{ inputs.suite }} on ${{ inputs.model }} (run ${{ github.run_id }})"
+          git push
+
+      - name: Upload run result as artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: runs-${{ github.run_id }}
+          name: run-${{ github.run_id }}
           path: Runs/
           retention-days: 30
