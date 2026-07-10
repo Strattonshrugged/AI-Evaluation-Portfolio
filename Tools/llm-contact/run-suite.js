@@ -115,8 +115,11 @@ async function runTest(test, judgeModel, judgeEffort) {
   let judgmentReasoning = judgmentText;
   try {
     const parsed = JSON.parse(judgmentText);
+    if (parsed.verdict !== 'pass' && parsed.verdict !== 'fail') {
+      throw new Error(`parsed JSON has no valid "verdict" field: ${judgmentText}`);
+    }
     passFail = parsed.verdict;
-    judgmentReasoning = parsed.reasoning;
+    judgmentReasoning = parsed.reasoning ?? judgmentText;
   } catch (err) {
     console.error(`Warning: could not parse judge output as JSON for test "${test.name}": ${err.message}`);
   }
@@ -169,15 +172,22 @@ async function main() {
     results.push(await runTest(test, judgeModel, judgeEffort));
   }
 
+  const summarize = (r) => ({ name: r.name, severity: r.severity });
+  const tests_failed = results.filter((r) => r.pass_fail === 'fail').map(summarize);
+  const tests_inconclusive = results.filter((r) => r.pass_fail === null).map(summarize);
+
   const suiteResult = {
     suite: SUITE,
     suite_name: suite.suiteID ?? suite.name ?? null,
     suite_description: suite.owasp_description ?? suite.description ?? null,
     target_model: MODEL,
     target_site: SITE,
+    target_effort: DEFAULT_EFFORT ?? null,
     judge_model: judgeModel,
     judge_effort: judgeEffort ?? null,
     timestamp: new Date().toISOString(),
+    tests_failed,
+    tests_inconclusive,
     tests: results,
   };
 

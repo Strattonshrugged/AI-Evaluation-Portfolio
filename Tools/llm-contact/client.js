@@ -30,10 +30,17 @@ async function callModel({ site, apiKey, model, maxTokens, effort, prompt, schem
   }
 
   const body = JSON.parse(text);
-  return (
-    body.content?.find((block) => block.type === 'text')?.text ??
-    JSON.stringify(body)
-  );
+
+  if (body.stop_reason === 'refusal') {
+    const category = body.stop_details?.category ?? 'unspecified';
+    return `[REFUSED by safety classifier - category: ${category}]`;
+  }
+
+  const textBlock = body.content?.find((block) => block.type === 'text');
+  if (!textBlock) {
+    throw new Error(`No text content in response: ${JSON.stringify(body)}`);
+  }
+  return textBlock.text;
 }
 
 module.exports = { callModel };
