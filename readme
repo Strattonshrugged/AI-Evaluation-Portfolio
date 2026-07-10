@@ -1,14 +1,54 @@
 # AI-Evaluation-Portfolio
-This repository collects my exercises and experiments in AI Evaluation and Red Teaming. It's a working portfolio so it will change and grow as I explore new tools and methodologies rather than serving as a static showcase.
 
-My background is in Quality Assurance so I would expect deviations from any kind of standard in AI Eval to fall in that direction.
+### Objective
+This harness and repository make up a basic LLM red-teaming/eval framework collecting my exercises and experiments. It's a working portfolio so it will change and grow as I explore new tools and methodologies rather than serving as a static showcase. My background is in Quality Assurance so I would expect deviations from any kind of best-practices in AI Evaluation to fall in that direction.
 
-Early folder outline ...
----Plans---
-    readme: strategy, methodology, scope
----Results---
-    run results, findings, conclusions
----Tools---
-    playwright, llm-judge
+### Design
+The basic API workflow selects a target (the API of an LLM) and a suite (the series of tests to run against it). Each test in a suite is sent to the target, and the reply is then passed—along with the suite's judgment criteria—to a second, judge call. The judge is required to return a structured, machine-readable verdict (a pass/fail plus its reasoning) rather than free-form prose, so grading stays consistent across every test and every suite.
 
-    
+Suites are the test templates: immutable, reusable definitions of a prompt and the standard it's judged against. Runs are the test products: a timestamped record of what actually happened when a suite was executed against a specific target—the real reply, the real verdict, the real reasoning. A suite can be run many times, against many targets, each producing its own Run.
+
+### Layout
+**Suites** will contain JSON objects dedicated toward a specific category of threat type or a standard of evaluation comparison.
+**Runs** will contain JSON objects; each is a record of the prompts, replies, and judgments, performed in a workflow execution.
+**Reports** contain both LLM-summaries and human-derived findings interpreting the results of the runs.
+**Tools** will contain code necessary for functionality including contacting APIs.
+
+```
+AI-Evaluation-Portfolio/
+├── .github/
+│   └── workflows/
+│       └── contact-llm.yml      # GitHub Actions: manually trigger a suite run
+├── Suites/                      # Test templates - prompts + judgment criteria
+├── Runs/                        # Test products - recorded results of each execution
+├── Reports/                     # LLM-summaries and human-derived findings
+└── Tools/
+    └── llm-contact/             # The harness: contacts the target, runs the judge, writes Runs/
+```
+
+### Usage
+
+**Run locally:**
+1. `cd Tools/llm-contact`
+2. `npm install`
+3. Copy `.env.example` to `.env` and fill in your own `API_KEY` (see `.env.example` for the rest of the settings)
+4. Set `SUITE` to the suite you want to run (e.g. `SUITE=LLM01-Prompt-Injection`, matching a filename in `Suites/` without `.json`)
+5. `node run-suite.js`
+
+The result is written to `Runs/<target>_<suite>_<date>_<iteration>.json`.
+
+**Run via GitHub Actions:**
+1. Add your Anthropic API key as a repository secret named `LLM_API_KEY`
+2. Go to the **Actions** tab → **Run Test Suite** → **Run workflow**
+3. Enter the suite name (matches a file in `Suites/`, without `.json`) and optionally override the target model, judge model, or reasoning effort
+4. The workflow runs the suite, commits the resulting Run file back to the repo, and also uploads it as a downloadable artifact
+
+### Roadmap
+- Expand OWASP LLM01
+- Expand to include other models
+- Start OWASP LLM06
+
+### LLM-as-judge
+LLMs are immensely complex devices with bias, fallibility, and incorrect facts hard-coded into their training. Any results here should not be counted on without additional testing. This process or repository is not affiliated with any company and all findings are my own personal opinion.
+
+Using an LLM as a judge is a bit like using one measuring stick against another measuring stick, it may tell you which is longer and shorter but won't tell you a precise length. The tests are structured to provide strict instructions on what constitutes a pass or fail result allowing a more consistent evaluation beyond assessment of the initial reply. Because LLM inputs can be vast and the response processes have weights I am not privy to, any trust put into an LLM should be disproportionate to the potential outcome of relying upon its answer.
