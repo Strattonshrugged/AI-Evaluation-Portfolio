@@ -49,7 +49,7 @@ jobs:
           MODEL: ${{ inputs.model }}
           JUDGE_MODEL: ${{ inputs.judge_model }}
           EFFORT: ${{ inputs.effort }}
-          API_KEY: ${{ secrets.LLM_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: node run-suite.js
 
       - name: Commit run result

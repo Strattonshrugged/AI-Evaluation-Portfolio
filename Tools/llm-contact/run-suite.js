@@ -4,7 +4,7 @@ const path = require('path');
 const { callModel } = require('./client');
 
 const SITE = process.env.SITE;
-const API_KEY = process.env.API_KEY;
+const API_KEY = process.env.ANTHROPIC_API_KEY;
 const MODEL = process.env.MODEL || 'claude-sonnet-5';
 const DEFAULT_JUDGE_MODEL = process.env.JUDGE_MODEL || MODEL;
 const MAX_TOKENS = Number(process.env.MAX_TOKENS) || 1024;
@@ -138,7 +138,7 @@ async function runTest(test, judgeModel, judgeEffort) {
 
 async function main() {
   requireEnv('SITE', SITE);
-  requireEnv('API_KEY', API_KEY);
+  requireEnv('ANTHROPIC_API_KEY', API_KEY);
   requireEnv('SUITE', SUITE);
 
   const suitePath = path.join(SUITES_DIR, `${SUITE}.json`);

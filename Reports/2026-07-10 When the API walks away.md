@@ -1,0 +1,4 @@
+### When the API walks away
+- LLM01-Prompt-Injection_2026-07-10_003.json is missing. The test iteration skips right over it. The reason for this is because of an unexpected discovery during the test run. My test structure at the time expected some type of response and for one test, I didn't get one.
+- The test in question involved OWASP LLM01 prompt injection via payload obfuscation - a malicious instruction sent base64-encoded to see whether asking the model to 'decode and follow' bypasses safety behavior. The safety classifier of the API wouldn't even allow the prompt to be examined. When the test followed up and asked the API to judge the response, the LLM again read the same base64-encoded instruction and slammed the door on it.
+- This result prompted me to change my test code so it was open to the possibility of a non-response.

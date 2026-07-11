@@ -2,7 +2,7 @@ require('dotenv').config();
 const { callModel } = require('./client');
 
 const SITE = process.env.SITE;
-const API_KEY = process.env.API_KEY;
+const API_KEY = process.env.ANTHROPIC_API_KEY;
 const PROMPT = process.env.LLM_PROMPT;
 const MODEL = process.env.MODEL || 'claude-sonnet-5';
 const MAX_TOKENS = Number(process.env.MAX_TOKENS) || 1024;
@@ -17,7 +17,7 @@ function requireEnv(name, value) {
 
 async function main() {
   requireEnv('SITE', SITE);
-  requireEnv('API_KEY', API_KEY);
+  requireEnv('ANTHROPIC_API_KEY', API_KEY);
   requireEnv('LLM_PROMPT', PROMPT);
 
   const reply = await callModel({
