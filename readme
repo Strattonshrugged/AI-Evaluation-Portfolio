@@ -6,11 +6,13 @@ This harness and repository make up a basic LLM red-teaming/eval framework colle
 ### Design
 The basic API workflow selects a target (the API of an LLM) and a suite (the series of tests to run against it). Each test in a suite is sent to the target, and the reply is then passed—along with the suite's judgment criteria—to a second, judge call. The judge is required to return a structured, machine-readable verdict (a pass/fail plus its reasoning) rather than free-form prose, so grading stays consistent across every test and every suite. A suite can also declare its own judge model and reasoning effort, so a given suite's grading stays consistent no matter which target it's run against or who runs it.
 
+The judge prompt explicitly asks for that JSON shape, and the request itself is backed by whichever structured-output mechanism the provider actually supports—strict schema enforcement for Anthropic and OpenAI, JSON-syntax mode for Mistral/xAI/DeepSeek, and Gemini's native response schema. Not every provider enforces the exact shape though, so if a judge call is asked for JSON and doesn't deliver a parseable `{verdict, reasoning}` object, that test is marked `judge_format_ok: false` and its name lands in a `judge_format_violations` summary up top—separate from a genuine inconclusive, because this means the judge's raw prose might still contain a real verdict worth a human's second look.
+
 Suites are the test templates: immutable, reusable definitions of a prompt and the standard it's judged against. Runs are the test products: a timestamped record of what actually happened when a suite was executed against a specific target—the real reply, the real verdict, the real reasoning. A suite can be run many times, against many targets, each producing its own Run.
 
 Judgment criteria can be a simple checklist of pass conditions, or, for adversarial tests, can add fail conditions—an unconditional veto that fails the test the moment any one of them is triggered, regardless of how many pass conditions were also met. That distinction matters for red-teaming specifically: a response that mostly behaves but still slips in the one dangerous thing you were testing for shouldn't be graded on a curve. Each test also declares a severity for what a failure would mean, carried through into its result.
 
-A verdict isn't limited to pass or fail. Sometimes no verdict can be reached at all—for example, if the target's own safety classifier refuses before generating a reply, and the judge (shown the same prompt) refuses to evaluate it too. That's recorded honestly as a third state, inconclusive, rather than forced into a pass or fail it didn't earn. Every Run also carries a `tests_failed` and `tests_inconclusive` summary up top, listing which tests need a second look and how severe each one is, so that doesn't require reading every test to find out.
+A verdict isn't limited to pass or fail. Sometimes no verdict can be reached at all—for example, if the target's own safety classifier refuses before generating a reply, and the judge (shown the same prompt) refuses to evaluate it too. That's recorded honestly as a third state, inconclusive, rather than forced into a pass or fail it didn't earn. Every Run also carries `tests_failed`, `tests_inconclusive`, and `judge_format_violations` summaries up top, listing which tests need a second look and how severe each one is, so that doesn't require reading every test to find out.
 
 ### Layout
 **Suites** will contain JSON objects dedicated toward a specific category of threat type or a standard of evaluation comparison.
@@ -35,21 +37,28 @@ AI-Evaluation-Portfolio/
 **Run locally:**
 1. `cd Tools/llm-contact`
 2. `npm install`
-3. Copy `.env.example` to `.env` and fill in your own `ANTHROPIC_API_KEY` (see `.env.example` for the rest of the settings)
-4. Set `SUITE` to the suite you want to run (e.g. `SUITE=LLM01-Prompt-Injection`, matching a filename in `Suites/` without `.json`)
-5. `node run-suite.js`
+3. Copy `.env.example` to `.env` and fill in the API key(s) for whichever provider(s) you plan to use (see `.env.example`)
+4. Set `PROVIDER` to the target provider (`anthropic` (default) | `openai` | `gemini` | `mistral` | `xai` | `deepseek`); leave `SITE`/`MODEL` unset to use that provider's default endpoint/model, or set them to override
+5. Set `SUITE` to the suite you want to run (e.g. `SUITE=LLM01-Prompt-Injection`, matching a filename in `Suites/` without `.json`)
+6. `node run-suite.js`
 
-The result is written to `Runs/<target>_<suite>_<date>_<iteration>.json`.
+The result is written to `Runs/<target>_<suite>_<date>_<iteration>.json`. The judge always runs against the same provider as the target (see Roadmap re: cross-family judging).
+
+**Check API connectivity (no Run written):**
+1. Fill in whichever of `OPENAI_API_KEY`, `GEMINI_API_KEY`, `MISTRAL_API_KEY`, `X_API_KEY`, `DEEPSEEK_API_KEY` you have keys for in `.env` (any left blank are skipped, not treated as an error)
+2. `node test-connections.js` (or `npm run test-connections`)
+
+This sends a one-word prompt directly to each configured provider and prints OK/FAIL/SKIPPED per provider — a cheap way to confirm keys and endpoints work without spending a suite run or writing to `Runs/`.
 
 **Run via GitHub Actions:**
-1. Add your Anthropic API key as a repository secret named `ANTHROPIC_API_KEY`
+1. Add the relevant API key(s) as repository secrets (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `MISTRAL_API_KEY`, `X_API_KEY`, `DEEPSEEK_API_KEY`)
 2. Go to the **Actions** tab → **Run Test Suite** → **Run workflow**
-3. Enter the suite name (matches a file in `Suites/`, without `.json`) and optionally override the target model, judge model, or reasoning effort
+3. Enter the suite name (matches a file in `Suites/`, without `.json`), choose a provider, and optionally override the site/model, judge model, or reasoning effort
 4. The workflow runs the suite, commits the resulting Run file back to the repo, and also uploads it as a downloadable artifact
 
 ### Roadmap
 - Expand OWASP LLM01
-- Expand to include other models
+- Expand to include other models — `run-suite.js`/`contact.js` can now target Anthropic, OpenAI, Gemini, Mistral, xAI, or DeepSeek via `PROVIDER`; still open is cross-family judging (the judge always runs on the same provider as the target right now)
 - Start OWASP LLM06
 
 ### LLM-as-judge

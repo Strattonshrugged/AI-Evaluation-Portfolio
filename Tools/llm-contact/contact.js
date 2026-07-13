@@ -1,10 +1,16 @@
 require('dotenv').config();
-const { callModel } = require('./client');
+const { callModel, PROVIDER_DEFAULTS, PROVIDER_ENV_KEYS } = require('./client');
 
-const SITE = process.env.SITE;
-const API_KEY = process.env.ANTHROPIC_API_KEY;
+// PROVIDER selects which API this hits (anthropic, openai, gemini, mistral,
+// xai, deepseek — see client.js). SITE/MODEL fall back to that provider's
+// defaults when not set explicitly.
+const PROVIDER = process.env.PROVIDER || 'anthropic';
+const PROVIDER_DEFAULT = PROVIDER_DEFAULTS[PROVIDER];
+const API_KEY_ENV = PROVIDER_ENV_KEYS[PROVIDER];
+const API_KEY = API_KEY_ENV && process.env[API_KEY_ENV];
+const SITE = process.env.SITE || PROVIDER_DEFAULT?.site;
 const PROMPT = process.env.LLM_PROMPT;
-const MODEL = process.env.MODEL || 'claude-sonnet-5';
+const MODEL = process.env.MODEL || PROVIDER_DEFAULT?.model;
 const MAX_TOKENS = Number(process.env.MAX_TOKENS) || 1024;
 const EFFORT = process.env.EFFORT; // low | medium | high | xhigh | max (optional, defaults to "high")
 
@@ -16,11 +22,15 @@ function requireEnv(name, value) {
 }
 
 async function main() {
-  requireEnv('SITE', SITE);
-  requireEnv('ANTHROPIC_API_KEY', API_KEY);
+  if (!PROVIDER_DEFAULT) {
+    console.error(`Unknown PROVIDER: "${PROVIDER}". Known providers: ${Object.keys(PROVIDER_DEFAULTS).join(', ')}`);
+    process.exit(1);
+  }
+  requireEnv(API_KEY_ENV, API_KEY);
   requireEnv('LLM_PROMPT', PROMPT);
 
   const reply = await callModel({
+    provider: PROVIDER,
     site: SITE,
     apiKey: API_KEY,
     model: MODEL,
@@ -29,6 +39,7 @@ async function main() {
     prompt: PROMPT,
   });
 
+  console.log(`Provider: ${PROVIDER}`);
   console.log(`Site: ${SITE}`);
   console.log(`Prompt: ${PROMPT}`);
   console.log(`Response: ${reply}`);

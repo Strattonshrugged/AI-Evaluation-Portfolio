@@ -1,11 +1,17 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
-const { callModel } = require('./client');
+const { callModel, PROVIDER_DEFAULTS, PROVIDER_ENV_KEYS } = require('./client');
 
-const SITE = process.env.SITE;
-const API_KEY = process.env.ANTHROPIC_API_KEY;
-const MODEL = process.env.MODEL || 'claude-sonnet-5';
+// PROVIDER selects both the target and judge model's provider (anthropic,
+// openai, gemini, mistral, xai, deepseek — see client.js). SITE/MODEL fall
+// back to that provider's defaults when not set explicitly.
+const PROVIDER = process.env.PROVIDER || 'anthropic';
+const PROVIDER_DEFAULT = PROVIDER_DEFAULTS[PROVIDER];
+const API_KEY_ENV = PROVIDER_ENV_KEYS[PROVIDER];
+const API_KEY = API_KEY_ENV && process.env[API_KEY_ENV];
+const SITE = process.env.SITE || PROVIDER_DEFAULT?.site;
+const MODEL = process.env.MODEL || PROVIDER_DEFAULT?.model;
 const DEFAULT_JUDGE_MODEL = process.env.JUDGE_MODEL || MODEL;
 const MAX_TOKENS = Number(process.env.MAX_TOKENS) || 1024;
 const DEFAULT_EFFORT = process.env.EFFORT; // low | medium | high | xhigh | max (optional, defaults to "high")
@@ -88,11 +94,14 @@ function buildJudgePrompt(test, reply) {
     reply,
     '',
     formatCriteria(test.judgment_criteria),
+    '',
+    'Respond with ONLY a JSON object of the exact shape {"verdict": "pass" | "fail", "reasoning": "<your reasoning>"} — no markdown code fences, no text before or after the JSON.',
   ].join('\n');
 }
 
 async function runTest(test, judgeModel, judgeEffort) {
   const reply = await callModel({
+    provider: PROVIDER,
     site: SITE,
     apiKey: API_KEY,
     model: MODEL,
@@ -101,7 +110,15 @@ async function runTest(test, judgeModel, judgeEffort) {
     prompt: test.prompt,
   });
 
+  // Judge runs against the same provider as the target (see readme/CLAUDE.md
+  // open items re: cross-family judging — not implemented yet). `schema` is
+  // translated to that provider's best-fit structured-output mechanism in
+  // client.js, but only Anthropic/OpenAI enforce the exact shape — Gemini's
+  // schema mode and the json_object providers (Mistral/xAI/DeepSeek) only
+  // guarantee syntactically valid JSON, not this shape, so it's still checked
+  // below and flagged via judge_format_ok if it doesn't hold.
   const judgmentText = await callModel({
+    provider: PROVIDER,
     site: SITE,
     apiKey: API_KEY,
     model: judgeModel,
@@ -113,6 +130,7 @@ async function runTest(test, judgeModel, judgeEffort) {
 
   let passFail = null;
   let judgmentReasoning = judgmentText;
+  let judgeFormatOk = true;
   try {
     const parsed = JSON.parse(judgmentText);
     if (parsed.verdict !== 'pass' && parsed.verdict !== 'fail') {
@@ -121,7 +139,8 @@ async function runTest(test, judgeModel, judgeEffort) {
     passFail = parsed.verdict;
     judgmentReasoning = parsed.reasoning ?? judgmentText;
   } catch (err) {
-    console.error(`Warning: could not parse judge output as JSON for test "${test.name}": ${err.message}`);
+    judgeFormatOk = false;
+    console.error(`Warning: judge output requested JSON but wasn't valid/well-shaped for test "${test.name}": ${err.message}`);
   }
 
   return {
@@ -133,12 +152,16 @@ async function runTest(test, judgeModel, judgeEffort) {
     severity: severityOf(test.judgment_criteria),
     pass_fail: passFail,
     judgment_reasoning: judgmentReasoning,
+    judge_format_ok: judgeFormatOk,
   };
 }
 
 async function main() {
-  requireEnv('SITE', SITE);
-  requireEnv('ANTHROPIC_API_KEY', API_KEY);
+  if (!PROVIDER_DEFAULT) {
+    console.error(`Unknown PROVIDER: "${PROVIDER}". Known providers: ${Object.keys(PROVIDER_DEFAULTS).join(', ')}`);
+    process.exit(1);
+  }
+  requireEnv(API_KEY_ENV, API_KEY);
   requireEnv('SUITE', SUITE);
 
   const suitePath = path.join(SUITES_DIR, `${SUITE}.json`);
@@ -159,6 +182,7 @@ async function main() {
   const judgeEffort = suite.judge_effort || DEFAULT_EFFORT;
 
   console.log(`Running suite: ${SUITE} (${suite.tests.length} test${suite.tests.length === 1 ? '' : 's'})`);
+  console.log(`Target: ${PROVIDER}/${MODEL}`);
   console.log(`Judge: ${judgeModel}${judgeEffort ? ` (effort: ${judgeEffort})` : ''}`);
 
   const results = [];
@@ -175,11 +199,20 @@ async function main() {
   const summarize = (r) => ({ name: r.name, severity: r.severity });
   const tests_failed = results.filter((r) => r.pass_fail === 'fail').map(summarize);
   const tests_inconclusive = results.filter((r) => r.pass_fail === null).map(summarize);
+  // Distinct from tests_inconclusive: this is specifically "we requested JSON
+  // and the judge didn't deliver it" (vs. e.g. a legitimate safety refusal),
+  // so it needs a human to check whether the judge's prose verdict was right.
+  const judge_format_violations = results.filter((r) => !r.judge_format_ok).map(summarize);
+
+  if (judge_format_violations.length > 0) {
+    console.warn(`\n⚠ ${judge_format_violations.length} test(s) requested JSON from the judge but didn't get a well-formed reply — see judge_format_violations in the saved Run.`);
+  }
 
   const suiteResult = {
     suite: SUITE,
     suite_name: suite.suiteID ?? suite.name ?? null,
     suite_description: suite.owasp_description ?? suite.description ?? null,
+    target_provider: PROVIDER,
     target_model: MODEL,
     target_site: SITE,
     target_effort: DEFAULT_EFFORT ?? null,
@@ -188,6 +221,7 @@ async function main() {
     timestamp: new Date().toISOString(),
     tests_failed,
     tests_inconclusive,
+    judge_format_violations,
     tests: results,
   };
 

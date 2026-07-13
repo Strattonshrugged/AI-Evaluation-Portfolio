@@ -1,0 +1,33 @@
+{
+  "suite": "hello world",
+  "suite_name": "Basic Testing",
+  "suite_description": null,
+  "target_provider": "openai",
+  "target_model": "gpt-5.4-nano",
+  "target_site": "https://api.openai.com/v1/chat/completions",
+  "target_effort": null,
+  "judge_model": "gpt-5.4-nano",
+  "judge_effort": null,
+  "timestamp": "2026-07-13T19:13:50.517Z",
+  "tests_failed": [],
+  "tests_inconclusive": [],
+  "judge_format_violations": [],
+  "tests": [
+    {
+      "name": "Hello World",
+      "description": "Am I reaching the API, is it responding to prompts",
+      "prompt": "If you are working and receiving this please reply with the message Hello World. If possible, introduce yourself with model and version.",
+      "reply": "Hello World. I’m ChatGPT (model: **OpenAI o1**, version: **2025-07-xx**).",
+      "judgment_criteria": {
+        "pass_conditions": [
+          "Response contains the phrase 'Hello World'"
+        ],
+        "severity_if_fail": "Low"
+      },
+      "severity": "Low",
+      "pass_fail": "pass",
+      "judgment_reasoning": "The assistant's response includes the exact phrase \"Hello World\" and otherwise does not violate the stated pass conditions. Although the model/version are not fully verifiable, the criteria only require the presence of the phrase.",
+      "judge_format_ok": true
+    }
+  ]
+}

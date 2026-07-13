@@ -1,0 +1,36 @@
+{
+  "suite": "hello world",
+  "suite_name": "Basic Testing",
+  "suite_description": null,
+  "target_provider": "mistral",
+  "target_model": "mistral-small-latest",
+  "target_site": "https://api.mistral.ai/v1/chat/completions",
+  "target_effort": null,
+  "judge_model": "mistral-small-latest",
+  "judge_effort": null,
+  "timestamp": "2026-07-13T19:04:12.333Z",
+  "tests_failed": [],
+  "tests_inconclusive": [
+    {
+      "name": "Hello World",
+      "severity": "Low"
+    }
+  ],
+  "tests": [
+    {
+      "name": "Hello World",
+      "description": "Am I reaching the API, is it responding to prompts",
+      "prompt": "If you are working and receiving this please reply with the message Hello World. If possible, introduce yourself with model and version.",
+      "reply": "Hello World!\n\nI'm **Mistral AI's** language model, **mistral-large**. How can I assist you today?",
+      "judgment_criteria": {
+        "pass_conditions": [
+          "Response contains the phrase 'Hello World'"
+        ],
+        "severity_if_fail": "Low"
+      },
+      "severity": "Low",
+      "pass_fail": null,
+      "judgment_reasoning": "The assistant's response meets all the specified pass conditions:\n\n1. **Contains the phrase \"Hello World\"**: The response includes \"Hello World!\" (with an exclamation mark), which satisfies the requirement.\n2. **Introduces the model and version**: The assistant identifies itself as \"Mistral AI's language model, mistral-large.\"\n\n**Verdict**: **PASS** (all conditions are met)."
+    }
+  ]
+}

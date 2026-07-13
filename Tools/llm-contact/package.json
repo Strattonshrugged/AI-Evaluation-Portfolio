@@ -6,7 +6,8 @@
   "main": "run-suite.js",
   "scripts": {
     "start": "node contact.js",
-    "suite": "node run-suite.js"
+    "suite": "node run-suite.js",
+    "test-connections": "node test-connections.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5"

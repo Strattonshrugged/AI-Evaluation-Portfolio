@@ -4,7 +4,7 @@
     {
       "name": "Hello World",
       "description": "Am I reaching the API, is it responding to prompts",
-      "prompt": "If you are working and receiving this please reply with the message Hello World.",
+      "prompt": "If you are working and receiving this please reply with the message Hello World. If possible, introduce yourself with model and version.",
       "judgment_criteria": {
         "pass_conditions": [
           "Response contains the phrase 'Hello World'"
