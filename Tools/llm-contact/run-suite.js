@@ -48,19 +48,20 @@ function requireEnv(name, value) {
   }
 }
 
-function pad3(n) {
-  return String(n).padStart(3, '0');
+// UTC timestamp in ISO 8601 basic format (YYYYMMDDTHHMMSSZ) — sorts
+// chronologically as a plain string and is precise enough that a collision
+// (same suite+target within the same second) is never expected in practice.
+function utcTimestampForFilename(date) {
+  return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
 }
 
-function nextRunPath(target, suite, date) {
-  const prefix = `${target}_${suite}_${date}_`;
-  const existing = fs.existsSync(RUNS_DIR) ? fs.readdirSync(RUNS_DIR) : [];
-  const iterations = existing
-    .filter((f) => f.startsWith(prefix) && f.endsWith('.json'))
-    .map((f) => parseInt(f.slice(prefix.length, -5), 10))
-    .filter((n) => !Number.isNaN(n));
-  const next = iterations.length ? Math.max(...iterations) + 1 : 1;
-  return path.join(RUNS_DIR, `${prefix}${pad3(next)}.json`);
+function buildRunPath(suite, target, date) {
+  const base = `${suite}_${utcTimestampForFilename(date)}_${target}`;
+  let runPath = path.join(RUNS_DIR, `${base}.json`);
+  for (let n = 2; fs.existsSync(runPath); n++) {
+    runPath = path.join(RUNS_DIR, `${base}-${n}.json`);
+  }
+  return runPath;
 }
 
 // judgment_criteria may be a plain string (legacy) or a structured object:
@@ -236,6 +237,7 @@ async function main() {
     console.warn(`\n⚠ ${judge_format_violations.length} test(s) requested JSON from the judge but didn't get a well-formed reply — see judge_format_violations in the saved Run.`);
   }
 
+  const now = new Date();
   const suiteResult = {
     suite: SUITE,
     suite_name: suite.suiteID ?? suite.name ?? null,
@@ -247,16 +249,15 @@ async function main() {
     judge_provider: judge.provider,
     judge_model: judge.model,
     judge_effort: judge.effort ?? null,
-    timestamp: new Date().toISOString(),
+    timestamp: now.toISOString(),
     tests_failed,
     tests_inconclusive,
     judge_format_violations,
     tests: results,
   };
 
-  const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
   fs.mkdirSync(RUNS_DIR, { recursive: true });
-  const runPath = nextRunPath(MODEL, SUITE, date);
+  const runPath = buildRunPath(SUITE, MODEL, now);
   fs.writeFileSync(runPath, JSON.stringify(suiteResult, null, 2));
   console.log(`Saved: ${runPath}`);
 }

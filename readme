@@ -49,7 +49,10 @@ Example: `node cli.js LLM01-Prompt-Injection anthropic:claude-sonnet-5:max mistr
 6. Optionally set `JUDGE_PROVIDER`/`JUDGE_MODEL`/`JUDGE_EFFORT` to judge on a different provider/model/effort than the target; leave unset to self-judge on the target's own provider/model
 7. `node run-suite.js`
 
-The result is written to `Runs/<target>_<suite>_<date>_<iteration>.json`.
+The result is written to `Runs/<suite>_<UTC-timestamp>_<target>.json`, e.g.
+`LLM01-Prompt-Injection_20260714T041322Z_claude-sonnet-5.json` — the timestamp
+is UTC, ISO 8601 basic format (`YYYYMMDDTHHMMSSZ`), giving each run a unique,
+chronologically-sortable filename without a separate iteration counter.
 
 **Check API connectivity (no Run written):**
 1. Fill in whichever of `OPENAI_API_KEY`, `GEMINI_API_KEY`, `MISTRAL_API_KEY`, `X_API_KEY`, `DEEPSEEK_API_KEY` you have keys for in `.env` (any left blank are skipped, not treated as an error)
