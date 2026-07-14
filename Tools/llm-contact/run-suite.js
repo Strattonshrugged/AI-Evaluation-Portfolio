@@ -3,19 +3,27 @@ const fs = require('fs');
 const path = require('path');
 const { callModel, PROVIDER_DEFAULTS, PROVIDER_ENV_KEYS } = require('./client');
 
-// PROVIDER selects both the target and judge model's provider (anthropic,
-// openai, gemini, mistral, xai, deepseek — see client.js). SITE/MODEL fall
-// back to that provider's defaults when not set explicitly.
+// PROVIDER selects the target's provider (anthropic, openai, gemini, mistral,
+// xai, deepseek — see client.js). SITE/MODEL fall back to that provider's
+// defaults when not set explicitly.
 const PROVIDER = process.env.PROVIDER || 'anthropic';
 const PROVIDER_DEFAULT = PROVIDER_DEFAULTS[PROVIDER];
 const API_KEY_ENV = PROVIDER_ENV_KEYS[PROVIDER];
 const API_KEY = API_KEY_ENV && process.env[API_KEY_ENV];
 const SITE = process.env.SITE || PROVIDER_DEFAULT?.site;
 const MODEL = process.env.MODEL || PROVIDER_DEFAULT?.model;
-const DEFAULT_JUDGE_MODEL = process.env.JUDGE_MODEL || MODEL;
 const MAX_TOKENS = Number(process.env.MAX_TOKENS) || 1024;
 const DEFAULT_EFFORT = process.env.EFFORT; // low | medium | high | xhigh | max (optional, defaults to "high")
 const SUITE = process.env.SUITE; // suite name (no .json extension)
+
+// The judge can run on a different provider than the target (genuine
+// cross-family judging). JUDGE_PROVIDER defaults to the target's own PROVIDER
+// (self-judge) when unset. A suite's own judge_provider/judge_model/judge_effort,
+// if declared, are authoritative over all of these env vars (resolved in main(),
+// once the suite is loaded).
+const ENV_JUDGE_PROVIDER = process.env.JUDGE_PROVIDER;
+const ENV_JUDGE_MODEL = process.env.JUDGE_MODEL;
+const ENV_JUDGE_EFFORT = process.env.JUDGE_EFFORT || DEFAULT_EFFORT;
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SUITES_DIR = path.join(REPO_ROOT, 'Suites');
@@ -99,7 +107,7 @@ function buildJudgePrompt(test, reply) {
   ].join('\n');
 }
 
-async function runTest(test, judgeModel, judgeEffort) {
+async function runTest(test, judge) {
   const reply = await callModel({
     provider: PROVIDER,
     site: SITE,
@@ -110,20 +118,20 @@ async function runTest(test, judgeModel, judgeEffort) {
     prompt: test.prompt,
   });
 
-  // Judge runs against the same provider as the target (see readme/CLAUDE.md
-  // open items re: cross-family judging — not implemented yet). `schema` is
-  // translated to that provider's best-fit structured-output mechanism in
-  // client.js, but only Anthropic/OpenAI enforce the exact shape — Gemini's
-  // schema mode and the json_object providers (Mistral/xAI/DeepSeek) only
-  // guarantee syntactically valid JSON, not this shape, so it's still checked
-  // below and flagged via judge_format_ok if it doesn't hold.
+  // Judge runs against its own resolved provider (may differ from the
+  // target's — see the judge* resolution in main()). `schema` is translated
+  // to that provider's best-fit structured-output mechanism in client.js, but
+  // only Anthropic/OpenAI enforce the exact shape — Gemini's schema mode and
+  // the json_object providers (Mistral/xAI/DeepSeek) only guarantee
+  // syntactically valid JSON, not this shape, so it's still checked below and
+  // flagged via judge_format_ok if it doesn't hold.
   const judgmentText = await callModel({
-    provider: PROVIDER,
-    site: SITE,
-    apiKey: API_KEY,
-    model: judgeModel,
+    provider: judge.provider,
+    site: judge.site,
+    apiKey: judge.apiKey,
+    model: judge.model,
     maxTokens: MAX_TOKENS,
-    effort: judgeEffort,
+    effort: judge.effort,
     prompt: buildJudgePrompt(test, reply),
     schema: JUDGMENT_SCHEMA,
   });
@@ -176,14 +184,34 @@ async function main() {
     process.exit(1);
   }
 
-  // A suite's declared judge is authoritative for that suite; falls back to
-  // JUDGE_MODEL/EFFORT env vars for suites that don't declare one.
-  const judgeModel = suite.judge_model || DEFAULT_JUDGE_MODEL;
-  const judgeEffort = suite.judge_effort || DEFAULT_EFFORT;
+  // A suite's declared judge_provider/judge_model/judge_effort are authoritative
+  // for that suite; fall back to the JUDGE_PROVIDER/JUDGE_MODEL/JUDGE_EFFORT env
+  // vars, and finally to self-judging (same provider/model as the target) when
+  // neither the suite nor the env vars specify a provider.
+  const judgeProvider = suite.judge_provider || ENV_JUDGE_PROVIDER || PROVIDER;
+  const judgeProviderDefault = PROVIDER_DEFAULTS[judgeProvider];
+  if (!judgeProviderDefault) {
+    console.error(`Unknown judge provider: "${judgeProvider}". Known providers: ${Object.keys(PROVIDER_DEFAULTS).join(', ')}`);
+    process.exit(1);
+  }
+  const judgeApiKeyEnv = PROVIDER_ENV_KEYS[judgeProvider];
+  const judgeApiKey = judgeApiKeyEnv && process.env[judgeApiKeyEnv];
+  requireEnv(judgeApiKeyEnv, judgeApiKey);
+
+  const judge = {
+    provider: judgeProvider,
+    site: judgeProviderDefault.site,
+    apiKey: judgeApiKey,
+    // Self-judge (same provider as target) defaults to the target's actual
+    // resolved MODEL (honors a MODEL override); a genuinely different judge
+    // provider defaults to that provider's own default model instead.
+    model: suite.judge_model || ENV_JUDGE_MODEL || (judgeProvider === PROVIDER ? MODEL : judgeProviderDefault.model),
+    effort: suite.judge_effort || ENV_JUDGE_EFFORT,
+  };
 
   console.log(`Running suite: ${SUITE} (${suite.tests.length} test${suite.tests.length === 1 ? '' : 's'})`);
   console.log(`Target: ${PROVIDER}/${MODEL}`);
-  console.log(`Judge: ${judgeModel}${judgeEffort ? ` (effort: ${judgeEffort})` : ''}`);
+  console.log(`Judge: ${judge.provider}/${judge.model}${judge.effort ? ` (effort: ${judge.effort})` : ''}`);
 
   const results = [];
   for (const test of suite.tests) {
@@ -193,7 +221,7 @@ async function main() {
       continue;
     }
     console.log(`  Running test: ${test.name}`);
-    results.push(await runTest(test, judgeModel, judgeEffort));
+    results.push(await runTest(test, judge));
   }
 
   const summarize = (r) => ({ name: r.name, severity: r.severity });
@@ -216,8 +244,9 @@ async function main() {
     target_model: MODEL,
     target_site: SITE,
     target_effort: DEFAULT_EFFORT ?? null,
-    judge_model: judgeModel,
-    judge_effort: judgeEffort ?? null,
+    judge_provider: judge.provider,
+    judge_model: judge.model,
+    judge_effort: judge.effort ?? null,
     timestamp: new Date().toISOString(),
     tests_failed,
     tests_inconclusive,

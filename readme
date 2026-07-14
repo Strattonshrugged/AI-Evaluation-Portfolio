@@ -4,7 +4,7 @@
 This harness and repository make up a basic LLM red-teaming/eval framework collecting my exercises and experiments. It's a working portfolio so it will change and grow as I explore new tools and methodologies rather than serving as a static showcase. My background is in Quality Assurance so I would expect deviations from any kind of best-practices in AI Evaluation to fall in that direction.
 
 ### Design
-The basic API workflow selects a target (the API of an LLM) and a suite (the series of tests to run against it). Each test in a suite is sent to the target, and the reply is then passed—along with the suite's judgment criteria—to a second, judge call. The judge is required to return a structured, machine-readable verdict (a pass/fail plus its reasoning) rather than free-form prose, so grading stays consistent across every test and every suite. A suite can also declare its own judge model and reasoning effort, so a given suite's grading stays consistent no matter which target it's run against or who runs it.
+The basic API workflow selects a target (the API of an LLM) and a suite (the series of tests to run against it). Each test in a suite is sent to the target, and the reply is then passed—along with the suite's judgment criteria—to a second, judge call. The judge is required to return a structured, machine-readable verdict (a pass/fail plus its reasoning) rather than free-form prose, so grading stays consistent across every test and every suite. The judge can run on a different provider than the target entirely (genuine cross-family judging, to avoid a model grading its own output leniently), and a suite can declare its own fixed judge provider/model/reasoning effort, so a given suite's grading stays consistent no matter which target it's run against or who runs it.
 
 The judge prompt explicitly asks for that JSON shape, and the request itself is backed by whichever structured-output mechanism the provider actually supports—strict schema enforcement for Anthropic and OpenAI, JSON-syntax mode for Mistral/xAI/DeepSeek, and Gemini's native response schema. Not every provider enforces the exact shape though, so if a judge call is asked for JSON and doesn't deliver a parseable `{verdict, reasoning}` object, that test is marked `judge_format_ok: false` and its name lands in a `judge_format_violations` summary up top—separate from a genuine inconclusive, because this means the judge's raw prose might still contain a real verdict worth a human's second look.
 
@@ -34,15 +34,22 @@ AI-Evaluation-Portfolio/
 
 ### Usage
 
-**Run locally:**
+**Run locally (CLI wrapper, easiest):**
 1. `cd Tools/llm-contact`
 2. `npm install`
-3. Copy `.env.example` to `.env` and fill in the API key(s) for whichever provider(s) you plan to use (see `.env.example`)
+3. Copy `.env.example` to `.env` and fill in the API key(s) for whichever provider(s) you plan to use (see `.env.example`) — you need a key for the judge's provider too if it differs from the target's
+4. `node cli.js <suite> <target> [judge]`, where `target`/`judge` are `provider[:model[:effort]]` (e.g. `anthropic:claude-sonnet-5:max`); `judge` is optional — omit it to self-judge with the target's own provider/model, or to defer entirely to a suite's own declared judge (a suite's `judge_provider`/`judge_model`/`judge_effort`, if present, always win). Run `node cli.js --help` for the full option list, pulled live from the providers `client.js` actually supports.
+
+Example: `node cli.js LLM01-Prompt-Injection anthropic:claude-sonnet-5:max mistral`
+
+**Run locally (env vars directly):**
+1-3. Same as above.
 4. Set `PROVIDER` to the target provider (`anthropic` (default) | `openai` | `gemini` | `mistral` | `xai` | `deepseek`); leave `SITE`/`MODEL` unset to use that provider's default endpoint/model, or set them to override
 5. Set `SUITE` to the suite you want to run (e.g. `SUITE=LLM01-Prompt-Injection`, matching a filename in `Suites/` without `.json`)
-6. `node run-suite.js`
+6. Optionally set `JUDGE_PROVIDER`/`JUDGE_MODEL`/`JUDGE_EFFORT` to judge on a different provider/model/effort than the target; leave unset to self-judge on the target's own provider/model
+7. `node run-suite.js`
 
-The result is written to `Runs/<target>_<suite>_<date>_<iteration>.json`. The judge always runs against the same provider as the target (see Roadmap re: cross-family judging).
+The result is written to `Runs/<target>_<suite>_<date>_<iteration>.json`.
 
 **Check API connectivity (no Run written):**
 1. Fill in whichever of `OPENAI_API_KEY`, `GEMINI_API_KEY`, `MISTRAL_API_KEY`, `X_API_KEY`, `DEEPSEEK_API_KEY` you have keys for in `.env` (any left blank are skipped, not treated as an error)
@@ -58,7 +65,7 @@ This sends a one-word prompt directly to each configured provider and prints OK/
 
 ### Roadmap
 - Expand OWASP LLM01
-- Expand to include other models — `run-suite.js`/`contact.js` can now target Anthropic, OpenAI, Gemini, Mistral, xAI, or DeepSeek via `PROVIDER`; still open is cross-family judging (the judge always runs on the same provider as the target right now)
+- Expand to include other models — `run-suite.js`/`contact.js` can now target Anthropic, OpenAI, Gemini, Mistral, xAI, or DeepSeek via `PROVIDER`, and the judge can independently run on any of those providers too via `JUDGE_PROVIDER` (or a suite's own declared `judge_provider`)
 - Start OWASP LLM06
 
 ### LLM-as-judge

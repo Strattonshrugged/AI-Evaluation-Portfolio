@@ -24,11 +24,26 @@ on:
       model:
         description: 'Target model override (leave blank to use the provider default)'
         required: false
+      judge_provider:
+        description: 'Judge provider (leave blank to self-judge on the target provider)'
+        required: false
+        type: choice
+        options:
+          - ''
+          - anthropic
+          - openai
+          - gemini
+          - mistral
+          - xai
+          - deepseek
       judge_model:
-        description: 'Judge model (defaults to the target model if left blank)'
+        description: 'Judge model (defaults to the target model if self-judging, or the judge provider default otherwise)'
         required: false
       effort:
-        description: 'Reasoning effort: low | medium | high | xhigh | max (leave blank for models without effort/thinking support, e.g. Haiku)'
+        description: 'Target reasoning effort: low | medium | high | xhigh | max (leave blank for models without effort/thinking support, e.g. Haiku)'
+        required: false
+      judge_effort:
+        description: 'Judge reasoning effort (defaults to the target effort above if left blank)'
         required: false
 
 permissions:
@@ -58,8 +73,10 @@ jobs:
           SITE: ${{ inputs.site }}
           SUITE: ${{ inputs.suite }}
           MODEL: ${{ inputs.model }}
+          JUDGE_PROVIDER: ${{ inputs.judge_provider }}
           JUDGE_MODEL: ${{ inputs.judge_model }}
           EFFORT: ${{ inputs.effort }}
+          JUDGE_EFFORT: ${{ inputs.judge_effort }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

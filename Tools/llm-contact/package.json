@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node contact.js",
     "suite": "node run-suite.js",
+    "cli": "node cli.js",
     "test-connections": "node test-connections.js"
   },
   "dependencies": {
